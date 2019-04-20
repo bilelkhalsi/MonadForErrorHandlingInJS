@@ -1,5 +1,5 @@
-
 import _ from 'lodash';
+import { Right, Left, Either } from './api';
 
 const API_CSV_HEADERS = "timestamp,content,viewed,href";
 const API_CSV_BODY = "\
@@ -18,82 +18,78 @@ const rowToMessage = _.template(`
 const showError = _.template(`<li class="Error"><%= message %></li>`);
 
 /**
- * Suppose we have a csv file to parse.
- */
-export default class {
-
-
-    constructor() {
-        this.headers
-    }
-
-    /**
-     * Csv header getter.
-     */
-    header() {
-        return API_CSV_HEADERS.split(',').filter(h=>!!h);
-    }
-
-    /**
-     * Csv body rows getter.
-     */
-    rows() {
-        return API_CSV_BODY.split(';').filter(r =>!!r);
-    }
-
-    /**
-     * Return an array of row fields.
-     * @param csv row 
-     */
-    _rowFields(row) {
-        return row.split(',');
-    }
-
-    /**
-     * Return an object {header: value}.
-     * @param {*} headerFields an array of header fields.
-     * @param {*} rowFields an array of row fields.
-     */
-    _zipRow(headerFields, rowFields) {
-        if (headerFields.length !== rowFields.length) {
-            return new Error('Row has an unexpected number of fields');
-        }
-        return _.zipObject(headerFields, rowFields);
-    }
-
-
-    /**
-     * This method process a single row 
-     * @param {*} headerFields an array of header fields
-     * @param {*} row a csv row.
-     */
-    processRow(headerFields, row) {
-        try {
-            const fields = this._rowFields(row);
-            const rowObj = this._zipRow(headerFields, fields);
-            const rowObjWithDate = this._addDateStr(rowObj);
-            return rowToMessage(rowObjWithDate);
-        } catch(e) {
-            return showError(e);
-        }
-    }
-
-    /**
-     * This method format timestamp to human readable date.
-     * @param {*} messageObj row object
-     */
-    _addDateStr(messageObj) {
-        const months = [
-            'January', 'February', 'March', 'April', 'May', 'June', 'July',
-            'August', 'September', 'October', 'November', 'December'
-        ];
-        const d = new Date(messageObj.timestamp);
-        if (isNaN(d)) {
-            throw new Error('Unable to parse date stamp in message object');
-        }
-        const datestr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-        return { datestr, ...messageObj };
-    }
-
-
+* This method process all the csv rows
+*/
+export function processRows() {
+    return rows().map(processRow).join('\n');
 }
+
+/**
+* This method process a single row 
+* @param {*} headerFields an array of header fields
+* @param {*} row a csv row.
+*/
+export function processRow(row) {
+    const rowObjWithDate = Either.right(row)
+        .map(rowFields)
+        .flatMap(zipRowHighOrderFn(header))
+        .flatMap(addDateStr);
+    return either(showError, rowToMessage, rowObjWithDate);
+}
+
+
+/**
+ * Csv header getter.
+ */
+function header() {
+    return API_CSV_HEADERS.split(',').filter(h => !!h);
+}
+
+/**
+* Csv body rows getter.
+*/
+function rows() {
+    return API_CSV_BODY.split(';').filter(r => !!r);
+}
+
+/**
+ * Return an array of row fields.
+ * @param csv row 
+ */
+function rowFields(row) {
+    return row.split(',');
+}
+
+/**
+ * High order function that take header supplier and return row fields.
+ * @param {*} headerSupplier header supplier
+ */
+function zipRowHighOrderFn(headerSupplier = () => []) {
+    return rowFields => headerSupplier().length !== rowFields.length ?
+        Either.left(new Error('Row has an unexpected number of fields'))
+        : Either.right(_.zipObject(headerSupplier(), rowFields));
+}
+
+
+/**
+ * This method format timestamp to human readable date.
+ * @param {*} messageObj row object
+ */
+function addDateStr(messageObj) {
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June', 'July',
+        'August', 'September', 'October', 'November', 'December'
+    ];
+    const d = new Date(messageObj.timestamp);
+    if (isNaN(d)) {
+        return Either.left(new Error('Unable to parse date stamp in message object'));
+    }
+    const datestr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    return Either.right({ datestr, ...messageObj });
+}
+
+function either(leftFun, rightFun, e) {
+    console.log(e.toString());
+    return (e instanceof Left) ? leftFun(e._value) : rightFun(e._value);
+}
+

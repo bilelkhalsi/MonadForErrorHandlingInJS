@@ -21,6 +21,7 @@
   "homepage": "https://github.com/bilelkhalsi/MonadForErrorHandlingInJS#readme",
   "devDependencies": {
     "@babel/core": "^7.4.3",
+    "@babel/plugin-transform-spread": "^7.2.2",
     "@babel/preset-env": "^7.4.3",
     "babel-loader": "^8.0.5",
     "html-webpack-plugin": "^3.2.0",
@@ -29,6 +30,7 @@
     "webpack-dev-server": "^3.3.1"
   },
   "dependencies": {
-    "lodash": "^4.17.11"
+    "lodash": "^4.17.11",
+    "neat-csv": "^5.0.0"
   }
 }

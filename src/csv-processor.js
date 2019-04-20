@@ -56,7 +56,7 @@ export default class {
      */
     _zipRow(headerFields, rowFields) {
         if (headerFields.length !== rowFields.length) {
-            return null;
+            return new Error('Row has an unexpected number of fields');
         }
         return _.zipObject(headerFields, rowFields);
     }
@@ -68,16 +68,14 @@ export default class {
      * @param {*} row a csv row.
      */
     processRow(headerFields, row) {
-        const fields = this._rowFields(row);
-        const rowObj = this._zipRow(headerFields, fields);
-        if (rowObj === null) {
-            return showError(new Error('Encountered a row with an unexpected number of items'));
+        try {
+            const fields = this._rowFields(row);
+            const rowObj = this._zipRow(headerFields, fields);
+            const rowObjWithDate = this._addDateStr(rowObj);
+            return rowToMessage(rowObjWithDate);
+        } catch(e) {
+            return showError(e);
         }
-        const rowObjWithDate = this._addDateStr(rowObj);
-        if (rowObjWithDate === null) {
-            return showError(new Error('Unable to parse date in row object'));
-        }
-        return rowToMessage(rowObjWithDate);
     }
 
     /**
@@ -85,16 +83,14 @@ export default class {
      * @param {*} messageObj row object
      */
     _addDateStr(messageObj) {
-        const errMsg = 'Unable to parse date stamp in message object';
         const months = [
             'January', 'February', 'March', 'April', 'May', 'June', 'July',
             'August', 'September', 'October', 'November', 'December'
         ];
         const d = new Date(messageObj.timestamp);
         if (isNaN(d)) {
-            return null;
+            throw new Error('Unable to parse date stamp in message object');
         }
-
         const datestr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
         return { datestr, ...messageObj };
     }

@@ -1,13 +1,9 @@
 import _ from 'lodash';
-import { Right, Left, Either } from './api';
+import { Left, Right, Either } from './api';
 
-const API_CSV_HEADERS = "timestamp,content,viewed,href";
-const API_CSV_BODY = "\
-2018-10-27T05:33:34+00:00,@madhatter invited you to tea,unread,https://example.com/invite/tea/3801;\
-2018-10-jj,@queenofhearts mentioned you in 'Croquet Tournament' discussion,viewed,https://example.com/discussions/croquet/1168;\
-2018-10-25T03:50:08+00:00,@cheshirecat sent you a grin,unread,https://example.com/interactions/grin/88\
-";
-
+// For left side (sad path).
+const showError = _.template(`<li class="Error"><%= message %></li>`);
+// For right side (happy path).
 const rowToMessage = _.template(`
     <li class="Message Message--<%= viewed %>">
         <a href="<%= href %>" class="Message-link"><%= content %></a>
@@ -15,13 +11,41 @@ const rowToMessage = _.template(`
     </li>
 `);
 
-const showError = _.template(`<li class="Error"><%= message %></li>`);
+/**
+ * Transform CSV string to list of a html list (<ul/>). 
+ * @param {string} csvData CSV string.
+ */
+export function csvToMessages(csvData) {
+    const csvRows = splitCSVToRows(csvData);
+    const headerFields = csvRows.map(_.head).map(rowFields);
+    const dataRows = csvRows.map(_.tail);
+    const eitherFun = headerFields.map(processRows);
+    const messagesArray = dataRows.ap(eitherFun);
+    return either(showError, showMessages, messagesArray);
+}
+
+
+/**
+ * Group list of <li> in <ul> element.
+ * @param {Array<string>} messages array of html <li/> 
+ */
+function showMessages(messages) {
+    return `<ul class="Messages">${messages.join('\n')}</ul>`;
+}
+
+
+function splitCSVToRows(csvData) {
+    // There should alawys be a header row. so if thereès no new ligne character, something is wrong.
+    return (csvData.indexOf('\n') < 0)
+        ? Either.left('No header row found in CSV data')
+        : Either.right(csvData.split('\n'));
+}
 
 /**
 * This method process all the csv rows
 */
-export function processRows() {
-    return rows().map(processRow).join('\n');
+function processRows(headerFields = []) {
+    return dataRows => dataRows.map(row => processRow(headerFields, row));
 }
 
 /**
@@ -29,27 +53,12 @@ export function processRows() {
 * @param {*} headerFields an array of header fields
 * @param {*} row a csv row.
 */
-export function processRow(row) {
-    const rowObjWithDate = Either.right(row)
+function processRow(headerFields, row) {
+    const rowWithDate = Either.right(row)
         .map(rowFields)
-        .flatMap(zipRowHighOrderFn(header))
+        .flatMap(zipRowHighOrderFn(headerFields))
         .flatMap(addDateStr);
-    return either(showError, rowToMessage, rowObjWithDate);
-}
-
-
-/**
- * Csv header getter.
- */
-function header() {
-    return API_CSV_HEADERS.split(',').filter(h => !!h);
-}
-
-/**
-* Csv body rows getter.
-*/
-function rows() {
-    return API_CSV_BODY.split(';').filter(r => !!r);
+    return either(showError, rowToMessage, rowWithDate);
 }
 
 /**
@@ -61,13 +70,13 @@ function rowFields(row) {
 }
 
 /**
- * High order function that take header supplier and return row fields.
- * @param {*} headerSupplier header supplier
+ * High order function that take header fields and return row fields.
+ * @param {*} headerFields header fields
  */
-function zipRowHighOrderFn(headerSupplier = () => []) {
-    return rowFields => headerSupplier().length !== rowFields.length ?
-        Either.left(new Error('Row has an unexpected number of fields'))
-        : Either.right(_.zipObject(headerSupplier(), rowFields));
+function zipRowHighOrderFn(headerFields) {
+    return rowFields => headerFields.length !== rowFields.length
+        ? Either.left(new Error('Row has an unexpected number of fields'))
+        : Either.right(_.zipObject(headerFields, rowFields));
 }
 
 

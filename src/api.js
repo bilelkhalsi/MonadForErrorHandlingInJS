@@ -28,6 +28,14 @@ export class Either {
         return (this instanceof Left) ? this : fn(this._value);
     }
 
+    /**
+     * Get Either of function and return Either of value.
+     * @param {Either} either either fo function. 
+     */
+    ap(either) {
+        return (this instanceof Left) ? this : this.map(either._value);
+    }
+
     toString() {
         const str = this._value.toString();
         if (this instanceof Left) {
